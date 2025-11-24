@@ -73,54 +73,38 @@ const CountryTable = () => {
     setSelectedAdditionalField('');
   };
 
+  // Helper function to get nested values
+  const getNestedValue = (obj, key) => {
+    const fields = {
+      name: obj.name?.common || '',
+      capital: Array.isArray(obj.capital) ? obj.capital.join(', ') : '',
+      currencies: obj.currencies ? Object.values(obj.currencies).map(c => c.name).join(', ') : '',
+      languages: obj.languages ? Object.values(obj.languages).join(', ') : '',
+      continents: Array.isArray(obj.continents) ? obj.continents.join(', ') : '',
+      timezones: Array.isArray(obj.timezones) ? obj.timezones.join(', ') : ''
+    };
+    return fields[key] || obj[key] || '';
+  };
+
   // Sorting logic
   const sortedCountries = useMemo(() => {
-    let sortableCountries = [...countries];
+    if (!sortConfig.key) return [...countries];
     
-    if (sortConfig.key !== null) {
-      sortableCountries.sort((a, b) => {
-        const aValue = getNestedValue(a, sortConfig.key);
-        const bValue = getNestedValue(b, sortConfig.key);
-
-        if (aValue === null || aValue === undefined) return 1;
-        if (bValue === null || bValue === undefined) return -1;
-
-        const aString = String(aValue).toLowerCase();
-        const bString = String(bValue).toLowerCase();
-
-        if (aString < bString) {
-          return sortConfig.direction === 'asc' ? -1 : 1;
-        }
-        if (aString > bString) {
-          return sortConfig.direction === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-    
-    return sortableCountries;
+    return [...countries].sort((a, b) => {
+      const aVal = String(getNestedValue(a, sortConfig.key)).toLowerCase();
+      const bVal = String(getNestedValue(b, sortConfig.key)).toLowerCase();
+      const dir = sortConfig.direction === 'asc' ? 1 : -1;
+      return aVal < bVal ? -dir : aVal > bVal ? dir : 0;
+    });
   }, [countries, sortConfig]);
 
   // Filtering logic
   const filteredCountries = useMemo(() => {
     return sortedCountries.filter(country => {
-      const nameMatch = filterName === '' || 
-        (country.name?.common?.toLowerCase().includes(filterName.toLowerCase()) ||
-         country.name?.official?.toLowerCase().includes(filterName.toLowerCase()));
-
-      let currencyMatch = true;
-      if (filterCurrency !== '') {
-        currencyMatch = false;
-        if (country.currencies) {
-          const currencyString = Object.values(country.currencies)
-            .map(curr => `${curr.name} ${curr.symbol}`)
-            .join(' ')
-            .toLowerCase();
-          currencyMatch = currencyString.includes(filterCurrency.toLowerCase());
-        }
-      }
-
-      return nameMatch && currencyMatch;
+      const name = country.name?.common?.toLowerCase() || '';
+      const currency = country.currencies ? Object.values(country.currencies).map(c => c.name).join(' ').toLowerCase() : '';
+      
+      return name.includes(filterName.toLowerCase()) && currency.includes(filterCurrency.toLowerCase());
     });
   }, [sortedCountries, filterName, filterCurrency]);
 
@@ -132,142 +116,39 @@ const CountryTable = () => {
 
   const totalPages = Math.ceil(filteredCountries.length / rowsPerPage);
 
-  // Helper function to get nested values
-  const getNestedValue = (obj, key) => {
-    if (!obj) return '';
-    
-    switch (key) {
-      case 'name':
-        return obj.name?.common || '';
-      case 'capital':
-        return Array.isArray(obj.capital) ? obj.capital.join(', ') : '';
-      case 'currencies':
-        if (!obj.currencies) return '';
-        return Object.values(obj.currencies).map(curr => curr.name).join(', ');
-      case 'languages':
-        if (!obj.languages) return '';
-        return Object.values(obj.languages).join(', ');
-      case 'continents':
-        return Array.isArray(obj.continents) ? obj.continents.join(', ') : '';
-      case 'timezones':
-        return Array.isArray(obj.timezones) ? obj.timezones.join(', ') : '';
-      default:
-        return obj[key] !== undefined ? obj[key] : '';
-    }
-  };
-
   // Format cell value for display
   const formatCellValue = (country, field) => {
     const value = country[field];
-    
-    if (value === null || value === undefined) return '-';
+    if (!value && value !== 0) return '-';
 
-    switch (field) {
-      case 'name':
-        return country.name?.common || '-';
-      
-      case 'capital':
-        return Array.isArray(country.capital) ? country.capital.join(', ') : '-';
-      
-      case 'currencies':
-        if (!country.currencies) return '-';
-        return Object.entries(country.currencies)
-          .map(([code, curr]) => `${curr.name} (${curr.symbol || code})`)
-          .join(', ');
-      
-      case 'flag':
-        return country.flag || '-';
-      
-      case 'languages':
-        if (!country.languages) return '-';
-        return Object.values(country.languages).join(', ');
-      
-      case 'continents':
-        return Array.isArray(country.continents) ? country.continents.join(', ') : '-';
-      
-      case 'timezones':
-        return Array.isArray(country.timezones) ? country.timezones.join(', ') : '-';
-      
-      case 'population':
-        return typeof value === 'number' ? value.toLocaleString() : value;
-      
-      case 'area':
-        return typeof value === 'number' ? `${value.toLocaleString()} km²` : value;
-      
-      case 'flags':
-        if (value?.svg || value?.png) {
-          return <img src={value.svg || value.png} alt="Flag" className="flag-img" />;
-        }
-        return '-';
-      
-      case 'coatOfArms':
-        if (value?.svg || value?.png) {
-          return <img src={value.svg || value.png} alt="Coat of Arms" className="coat-img" />;
-        }
-        return '-';
-      
-      case 'maps':
-        if (value?.googleMaps) {
-          return <a href={value.googleMaps} target="_blank" rel="noopener noreferrer">View Map</a>;
-        }
-        return '-';
-      
-      case 'latlng':
-        return Array.isArray(value) ? value.join(', ') : '-';
-      
-      case 'borders':
-        return Array.isArray(value) ? value.join(', ') : '-';
-      
-      case 'tld':
-        return Array.isArray(value) ? value.join(', ') : '-';
-      
-      case 'independent':
-      case 'unMember':
-      case 'landlocked':
-        return value ? 'Yes' : 'No';
-      
-      case 'car':
-        if (typeof value === 'object') {
-          return `Side: ${value.side || '-'}, Signs: ${Array.isArray(value.signs) ? value.signs.join(', ') : '-'}`;
-        }
-        return '-';
-      
-      case 'idd':
-        if (typeof value === 'object') {
-          const root = value.root || '';
-          const suffixes = Array.isArray(value.suffixes) ? value.suffixes.join(', ') : '';
-          return suffixes ? `${root} (${suffixes})` : root || '-';
-        }
-        return '-';
-      
-      case 'gini':
-        if (typeof value === 'object') {
-          const entries = Object.entries(value);
-          return entries.length > 0 ? entries.map(([year, val]) => `${year}: ${val}`).join(', ') : '-';
-        }
-        return '-';
-      
-      case 'demonyms':
-        if (typeof value === 'object' && value.eng) {
-          return `${value.eng.m || '-'} / ${value.eng.f || '-'}`;
-        }
-        return '-';
-      
-      case 'translations':
-        if (typeof value === 'object') {
-          return Object.keys(value).length > 0 ? `${Object.keys(value).length} languages` : '-';
-        }
-        return '-';
+    const formatters = {
+      name: () => country.name?.common || '-',
+      capital: () => Array.isArray(country.capital) ? country.capital.join(', ') : '-',
+      currencies: () => country.currencies ? Object.entries(country.currencies).map(([code, curr]) => `${curr.name} (${curr.symbol || code})`).join(', ') : '-',
+      flag: () => country.flag || '-',
+      languages: () => country.languages ? Object.values(country.languages).join(', ') : '-',
+      continents: () => Array.isArray(country.continents) ? country.continents.join(', ') : '-',
+      timezones: () => Array.isArray(country.timezones) ? country.timezones.join(', ') : '-',
+      population: () => typeof value === 'number' ? value.toLocaleString() : value,
+      area: () => typeof value === 'number' ? `${value.toLocaleString()} km²` : value,
+      flags: () => (value?.svg || value?.png) ? <img src={value.svg || value.png} alt="Flag" className="flag-img" /> : '-',
+      coatOfArms: () => (value?.svg || value?.png) ? <img src={value.svg || value.png} alt="Coat of Arms" className="coat-img" /> : '-',
+      maps: () => value?.googleMaps ? <a href={value.googleMaps} target="_blank" rel="noopener noreferrer">View Map</a> : '-',
+      latlng: () => Array.isArray(value) ? value.join(', ') : '-',
+      borders: () => Array.isArray(value) ? value.join(', ') : '-',
+      tld: () => Array.isArray(value) ? value.join(', ') : '-',
+      independent: () => value ? 'Yes' : 'No',
+      unMember: () => value ? 'Yes' : 'No',
+      landlocked: () => value ? 'Yes' : 'No',
+      car: () => typeof value === 'object' ? `Side: ${value.side || '-'}, Signs: ${Array.isArray(value.signs) ? value.signs.join(', ') : '-'}` : '-',
+      idd: () => typeof value === 'object' ? (value.suffixes ? `${value.root || ''} (${value.suffixes.join(', ')})` : value.root || '-') : '-',
+      gini: () => typeof value === 'object' ? (Object.entries(value).length ? Object.entries(value).map(([year, val]) => `${year}: ${val}`).join(', ') : '-') : '-',
+      demonyms: () => (value?.eng) ? `${value.eng.m || '-'} / ${value.eng.f || '-'}` : '-',
+      translations: () => typeof value === 'object' ? `${Object.keys(value).length} languages` : '-',
+      altSpellings: () => Array.isArray(value) ? value.join(', ') : '-'
+    };
 
-      case 'altSpellings':
-        return Array.isArray(value) ? value.join(', ') : '-';
-      
-      default:
-        if (typeof value === 'object' && value !== null) {
-          return JSON.stringify(value);
-        }
-        return String(value);
-    }
+    return formatters[field] ? formatters[field]() : (typeof value === 'object' ? JSON.stringify(value) : String(value));
   };
 
   // Handle sort
@@ -325,6 +206,19 @@ const CountryTable = () => {
             onChange={(e) => setFilterCurrency(e.target.value)}
             className="filter-input"
           />
+        </div>
+        <div className="filter-group">
+          <button 
+            onClick={() => {
+              setFilterName('');
+              setFilterCurrency('');
+              setSortConfig({ key: null, direction: 'asc' });
+            }}
+            className="reset-button"
+            disabled={filterName === '' && filterCurrency === '' && sortConfig.key === null}
+          >
+            Reset
+          </button>
         </div>
       </div>
 
